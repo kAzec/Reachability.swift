@@ -87,7 +87,7 @@ public final class NetworkReachability : CustomStringConvertible {
         delegate: NetworkReachabilityDelegate?,
         notifyingQueue: DispatchQueue?,
         notificationCenter: NotificationCenter
-        ) {
+    ) {
         self.reachabilityRef = reachabilityRef
         self.allowsWWANConnection = allowsWWANConnection
         self.delegate = delegate
@@ -99,10 +99,10 @@ public final class NetworkReachability : CustomStringConvertible {
         guard !atomic_flag_test_and_set(&isMonitoring) else { return }
         
         var context = SCNetworkReachabilityContext(
-            version: 0,
-            info: UnsafeMutableRawPointer(Unmanaged<NetworkReachability>.passUnretained(self).toOpaque()),
-            retain: nil,
-            release: nil,
+            version:         0,
+            info:            UnsafeMutableRawPointer(Unmanaged<NetworkReachability>.passUnretained(self).toOpaque()),
+            retain:          nil,
+            release:         nil,
             copyDescription: nil
         )
         
@@ -139,17 +139,17 @@ public extension NetworkReachability {
         delegate: NetworkReachabilityDelegate? = nil,
         notifyingQueue: DispatchQueue? = nil,
         notificationCenter: NotificationCenter = .default
-        ) {
+    ) {
         guard let reachabilityRef = SCNetworkReachabilityCreateWithName(nil, hostname) else {
             return nil
         }
         
         self.init(
-            reachabilityRef: reachabilityRef,
+            reachabilityRef:      reachabilityRef,
             allowsWWANConnection: allowsWWANConnection,
-            delegate: delegate,
-            notifyingQueue: notifyingQueue,
-            notificationCenter: notificationCenter
+            delegate:             delegate,
+            notifyingQueue:       notifyingQueue,
+            notificationCenter:   notificationCenter
         )
     }
     
@@ -159,17 +159,17 @@ public extension NetworkReachability {
         delegate: NetworkReachabilityDelegate? = nil,
         notifyingQueue: DispatchQueue? = nil,
         notificationCenter: NotificationCenter = .default
-        ) {
+    ) {
         guard let reachabilityRef = SCNetworkReachabilityCreateWithAddress(nil, &address) else {
             return nil
         }
         
         self.init(
-            reachabilityRef: reachabilityRef,
+            reachabilityRef:      reachabilityRef,
             allowsWWANConnection: allowsWWANConnection,
-            delegate: delegate,
-            notifyingQueue: notifyingQueue,
-            notificationCenter: notificationCenter
+            delegate:             delegate,
+            notifyingQueue:       notifyingQueue,
+            notificationCenter:   notificationCenter
         )
     }
     
@@ -178,17 +178,17 @@ public extension NetworkReachability {
         delegate: NetworkReachabilityDelegate? = nil,
         notifyingQueue: DispatchQueue? = nil,
         notificationCenter: NotificationCenter = .default
-        ) {
+    ) {
         var zeroAddress = sockaddr()
         zeroAddress.sa_len = UInt8(MemoryLayout<sockaddr>.size)
         zeroAddress.sa_family = sa_family_t(AF_INET)
         
         self.init(
-            address: &zeroAddress,
+            address:              &zeroAddress,
             allowsWWANConnection: allowsWWANConnection,
-            delegate: delegate,
-            notifyingQueue: notifyingQueue,
-            notificationCenter: notificationCenter
+            delegate:             delegate,
+            notifyingQueue:       notifyingQueue,
+            notificationCenter:   notificationCenter
         )
     }
 }
@@ -235,7 +235,7 @@ extension NetworkReachabilityDelegate {
     func reachability(
         _ reachability: NetworkReachability,
         didBecomeUnreachableWith status: NetworkReachability.Status
-        ) { }
+    ) { }
 }
 
 // MARK: - Notification
@@ -247,9 +247,9 @@ public extension NSNotification.Name {
 private extension NetworkReachability {
     func isReachable(for status: Status) -> Bool {
         switch status {
-        case .unreachable      : return false
-        case .reachableViaWLAN : return true
-        case .reachableViaWWAN : return allowsWWANConnection
+        case .unreachable:      return false
+        case .reachableViaWLAN: return true
+        case .reachableViaWWAN: return allowsWWANConnection
         }
     }
     
@@ -297,11 +297,9 @@ private extension NetworkReachability {
                 delegate.reachability(self, didChangeStatus: status)
                 
                 switch (isReachable(for: monitoringStatus), isReachable(for: status)) {
-                case (true, false):
-                    delegate.reachability(self, didBecomeUnreachableWith: status)
-                case (false, true):
-                    delegate.reachability(self, didBecomeReachableWith: status)
-                default: break
+                case (true, false): delegate.reachability(self, didBecomeUnreachableWith: status)
+                case (false, true): delegate.reachability(self, didBecomeReachableWith: status)
+                default:            break
                 }
             }
         }
@@ -315,7 +313,7 @@ private func reachabilityCallback(
     reachability: SCNetworkReachability,
     flags: SCNetworkReachabilityFlags,
     info: UnsafeMutableRawPointer?
-    ) {
+) {
     guard let info = info else { return }
     
     let reachability = Unmanaged<NetworkReachability>.fromOpaque(info).takeUnretainedValue()
