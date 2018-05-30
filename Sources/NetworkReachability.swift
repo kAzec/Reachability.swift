@@ -6,8 +6,9 @@
 //  Copyright © 2018 kAzec. All rights reserved.
 //
 
-import SystemConfiguration
+import os.lock
 import Foundation
+import SystemConfiguration
 
 public final class NetworkReachability : CustomStringConvertible {
     public enum Error : Swift.Error {
@@ -15,15 +16,25 @@ public final class NetworkReachability : CustomStringConvertible {
         case failedToSetDispatchQueue
     }
     
-    private static var defaultInstance: NetworkReachability?
+    private static var singletonLock = os_unfair_lock()
+    private static var singleton: NetworkReachability?
     
     public static var `default`: NetworkReachability? {
-        if let instance = defaultInstance {
+        os_unfair_lock_lock(&singletonLock)
+        defer {
+            os_unfair_lock_unlock(&singletonLock)
+        }
+        
+        if let instance = singleton {
             return instance
         } else {
-            defaultInstance = NetworkReachability()
-            return defaultInstance
+            singleton = NetworkReachability()
+            return singleton
         }
+    }
+    
+    public static var isReachable: Bool {
+        return NetworkReachability.default?.isReachable ?? false
     }
     
     public var flags: SCNetworkReachabilityFlags {
@@ -70,28 +81,39 @@ public final class NetworkReachability : CustomStringConvertible {
         return "\(W)\(R) \(c)\(t)\(i)\(C)\(D)\(l)\(d)"
     }
     
-    public private(set) weak var delegate: NetworkReachabilityDelegate?
+    public var delegate: NetworkReachabilityDelegate? {
+        get {
+            return (notifyingQueue ?? monitoringQueue).sync { underlyingDelegate }
+        }
+        
+        set {
+            (notifyingQueue ?? monitoringQueue).sync { underlyingDelegate = newValue }
+        }
+    }
     
     public var allowsWWANConnection: Bool
+    
     public let notifyingQueue: DispatchQueue?
     public let notificationCenter: NotificationCenter
     
     private var isMonitoring = atomic_flag()
     private var monitoringFlags: SCNetworkReachabilityFlags = []
     private let reachabilityRef: SCNetworkReachability
+    
     private lazy var monitoringQueue = DispatchQueue(label: "com.uncosmos.Reachability.monitoring", qos: .utility)
+    private weak var underlyingDelegate: NetworkReachabilityDelegate?
     
     private init(
         reachabilityRef: SCNetworkReachability,
-        allowsWWANConnection: Bool,
         delegate: NetworkReachabilityDelegate?,
+        allowsWWANConnection: Bool,
         notifyingQueue: DispatchQueue?,
         notificationCenter: NotificationCenter
     ) {
-        self.reachabilityRef = reachabilityRef
-        self.allowsWWANConnection = allowsWWANConnection
-        self.delegate = delegate
         self.notifyingQueue = notifyingQueue
+        self.reachabilityRef = reachabilityRef
+        self.underlyingDelegate = delegate
+        self.allowsWWANConnection = allowsWWANConnection
         self.notificationCenter = notificationCenter
     }
     
@@ -135,8 +157,8 @@ public final class NetworkReachability : CustomStringConvertible {
 public extension NetworkReachability {
     convenience init?(
         hostname: String,
-        allowsWWANConnection: Bool = true,
         delegate: NetworkReachabilityDelegate? = nil,
+        allowsWWANConnection: Bool = true,
         notifyingQueue: DispatchQueue? = nil,
         notificationCenter: NotificationCenter = .default
     ) {
@@ -146,8 +168,8 @@ public extension NetworkReachability {
         
         self.init(
             reachabilityRef:      reachabilityRef,
-            allowsWWANConnection: allowsWWANConnection,
             delegate:             delegate,
+            allowsWWANConnection: allowsWWANConnection,
             notifyingQueue:       notifyingQueue,
             notificationCenter:   notificationCenter
         )
@@ -155,8 +177,8 @@ public extension NetworkReachability {
     
     convenience init?(
         address: inout sockaddr,
-        allowsWWANConnection: Bool = true,
         delegate: NetworkReachabilityDelegate? = nil,
+        allowsWWANConnection: Bool = true,
         notifyingQueue: DispatchQueue? = nil,
         notificationCenter: NotificationCenter = .default
     ) {
@@ -166,16 +188,16 @@ public extension NetworkReachability {
         
         self.init(
             reachabilityRef:      reachabilityRef,
-            allowsWWANConnection: allowsWWANConnection,
             delegate:             delegate,
+            allowsWWANConnection: allowsWWANConnection,
             notifyingQueue:       notifyingQueue,
             notificationCenter:   notificationCenter
         )
     }
     
     convenience init?(
-        allowsWWANConnection: Bool = true,
         delegate: NetworkReachabilityDelegate? = nil,
+        allowsWWANConnection: Bool = true,
         notifyingQueue: DispatchQueue? = nil,
         notificationCenter: NotificationCenter = .default
     ) {
@@ -185,8 +207,8 @@ public extension NetworkReachability {
         
         self.init(
             address:              &zeroAddress,
-            allowsWWANConnection: allowsWWANConnection,
             delegate:             delegate,
+            allowsWWANConnection: allowsWWANConnection,
             notifyingQueue:       notifyingQueue,
             notificationCenter:   notificationCenter
         )
@@ -228,7 +250,7 @@ public protocol NetworkReachabilityDelegate : class {
     func reachability(_ reachability: NetworkReachability, didBecomeUnreachableWith status: NetworkReachability.Status)
 }
 
-extension NetworkReachabilityDelegate {
+public extension NetworkReachabilityDelegate {
     func reachability(_ reachability: NetworkReachability, didChangeFlags flags: SCNetworkReachabilityFlags) { }
     func reachability(_ reachability: NetworkReachability, didChangeStatus status: NetworkReachability.Status) { }
     func reachability(_ reachability: NetworkReachability, didBecomeReachableWith status: NetworkReachability.Status) {}
@@ -271,7 +293,7 @@ private extension NetworkReachability {
         let flags = self.flags
         let status = Status(flags: flags)
         
-        if let delegate = delegate {
+        if let delegate = underlyingDelegate {
             delegate.reachability(self, didChangeFlags: flags)
             delegate.reachability(self, didChangeStatus: status)
             
@@ -289,7 +311,7 @@ private extension NetworkReachability {
     func notifyReachabilityChanges(for flags: SCNetworkReachabilityFlags) {
         let status = Status(flags: flags)
         
-        if let delegate = delegate {
+        if let delegate = underlyingDelegate {
             delegate.reachability(self, didChangeFlags: flags)
             
             let monitoringStatus = Status(flags: monitoringFlags)
