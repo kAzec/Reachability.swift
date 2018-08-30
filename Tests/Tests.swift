@@ -12,11 +12,19 @@ import XCTest
 class ReachabilityTests: XCTestCase, NetworkReachabilityDelegate {
     let delegate = NetworkReachabilityDelegateThunk()
     
+    func testStatus() {
+        let reachability: NetworkReachability! = .default
+        
+        XCTAssertNotNil(reachability, "Failed to get default reachability object.")
+        
+        print("Network is currently: '\(reachability.status)'")
+    }
+    
     func testValidHost() {
         let hostname = "example.com"
         let reachability = NetworkReachability(hostname: hostname, delegate: delegate, notifyingQueue: .main)
         
-        XCTAssertNotNil(reachability, "Failed to create reachability object for host name: \(hostname)")
+        XCTAssertNotNil(reachability, "Failed to create reachability object for host name: \(hostname).")
         
         let expectation = self.expectation(description: "Reachability for valid host: \(hostname) should be reachable.")
         
@@ -56,11 +64,6 @@ class ReachabilityTests: XCTestCase, NetworkReachabilityDelegate {
         XCTAssertNoThrow(try reachability!.startMonitoring(), "Failed to start monitoring reachability status.")
         wait(for: [expectation], timeout: 5)
         reachability!.stopMonitoring()
-    }
-    
-    func testExample() {
-        let reachablity = NetworkReachability(hostname: "localhost")!
-        print(reachablity)
     }
 }
 

@@ -16,8 +16,8 @@ public final class NetworkReachability : CustomStringConvertible {
         case failedToSetDispatchQueue
     }
     
-    private static var singletonLock = os_unfair_lock()
     private static var singleton: NetworkReachability?
+    private static var singletonLock = os_unfair_lock()
     
     public static var `default`: NetworkReachability? {
         os_unfair_lock_lock(&singletonLock)
@@ -223,8 +223,9 @@ public extension NetworkReachability {
         case reachableViaWWAN = "WWAN"
         
         init(flags: SCNetworkReachabilityFlags) {
-            if !flags.contains(.reachable) {
+            guard flags.contains(.reachable) else {
                 self = .unreachable
+                return
             }
             
             #if targetEnvironment(simulator)
